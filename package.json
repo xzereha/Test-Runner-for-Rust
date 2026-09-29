@@ -3,6 +3,7 @@
     "displayName": "Test Runner for Rust",
     "description": "Runs Rust tests via Cargo",
     "publisher": "XZereha",
+    "repository": "github:xzereha/Test-Runner-for-Rust",
     "version": "0.0.1",
     "engines": {
         "vscode": "^1.138.0"
