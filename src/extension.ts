@@ -1,11 +1,16 @@
 import * as vscode from "vscode";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 
-type CargoTest = { name: string; item: vscode.TestItem };
+type CargoTest = {
+    name: string;
+    item: vscode.TestItem;
+    modules: string[];
+};
 type CargoProject = {
     root: vscode.TestItem;
     cwd: string;
     tests: Map<string, CargoTest>;
+    modules: Map<string, vscode.TestItem>;
 };
 
 function runCargo(
@@ -52,12 +57,21 @@ export function parseTestListing(output: string): string[] {
     return [...output.matchAll(/^(.+): test$/gm)].map((match) => match[1]);
 }
 
+export function getTestPath(name: string): {
+    modules: string[];
+    label: string;
+} {
+    const parts = name.split("::");
+    return { modules: parts.slice(0, -1), label: parts[parts.length - 1] };
+}
+
 function discover(
     project: CargoProject,
     controller: vscode.TestController,
 ): Promise<void> {
     project.root.children.replace([]);
     project.tests.clear();
+    project.modules.clear();
     const tokenSource = new vscode.CancellationTokenSource();
     return runCargo(
         project.cwd,
@@ -70,13 +84,29 @@ function discover(
                 throw new Error(stdout || "Cargo test discovery failed.");
             }
             for (const name of parseTestListing(stdout)) {
+                const { modules, label } = getTestPath(name);
+                let parent = project.root;
+                for (let index = 0; index < modules.length; index += 1) {
+                    const path = modules.slice(0, index + 1).join("::");
+                    let module = project.modules.get(path);
+                    if (!module) {
+                        module = controller.createTestItem(
+                            `${project.root.id}::module::${path}`,
+                            modules[index],
+                            project.root.uri,
+                        );
+                        project.modules.set(path, module);
+                        parent.children.add(module);
+                    }
+                    parent = module;
+                }
                 const item = controller.createTestItem(
-                    `${project.root.id}::${name}`,
-                    name,
+                    `${project.root.id}::test::${name}`,
+                    label,
                     project.root.uri,
                 );
-                project.tests.set(name, { name, item });
-                project.root.children.add(item);
+                project.tests.set(name, { name, item, modules });
+                parent.children.add(item);
             }
         })
         .finally(() => tokenSource.dispose());
@@ -123,15 +153,16 @@ function applyResults(
     }
 }
 
-function selectTests(
+export function selectTests(
     project: CargoProject,
-    request: vscode.TestRunRequest,
+    request: Pick<vscode.TestRunRequest, "include" | "exclude">,
 ): { tests: CargoTest[]; runAsSuite: boolean } | undefined {
-    const included = request.include?.filter(
-        (item) =>
-            item === project.root ||
-            project.root.children.get(item.id) === item,
-    );
+    const projectItems = new Set<vscode.TestItem>([
+        project.root,
+        ...project.modules.values(),
+        ...[...project.tests.values()].map(({ item }) => item),
+    ]);
+    const included = request.include?.filter((item) => projectItems.has(item));
     if (request.include && included?.length === 0) {
         return undefined;
     }
@@ -140,20 +171,30 @@ function selectTests(
     if (excluded.has(project.root.id)) {
         return undefined;
     }
+    const includedModules = [...project.modules]
+        .filter(([, item]) => included?.includes(item))
+        .map(([path]) => path);
+    const excludedModules = [...project.modules]
+        .filter(([, item]) => excluded.has(item.id))
+        .map(([path]) => path);
+    const isWithinModules = (modules: string[], paths: string[]): boolean =>
+        paths.some(
+            (path) =>
+                modules.slice(0, path.split("::").length).join("::") === path,
+        );
     const tests = [...project.tests.values()].filter(
-        ({ item }) =>
-            (rootIncluded || included?.includes(item)) &&
-            !excluded.has(item.id),
+        ({ item, modules }) =>
+            (rootIncluded ||
+                included?.includes(item) ||
+                isWithinModules(modules, includedModules)) &&
+            !excluded.has(item.id) &&
+            !isWithinModules(modules, excludedModules),
     );
     if (tests.length === 0) {
         return undefined;
     }
     const excludesProjectItems =
-        request.exclude?.some(
-            (item) =>
-                item === project.root ||
-                project.root.children.get(item.id) === item,
-        ) ?? false;
+        request.exclude?.some((item) => projectItems.has(item)) ?? false;
     return { tests, runAsSuite: rootIncluded && !excludesProjectItems };
 }
 
@@ -255,7 +296,12 @@ export function activate(context: vscode.ExtensionContext): void {
             folder.name,
             folder.uri,
         );
-        const project = { root, cwd, tests: new Map<string, CargoTest>() };
+        const project = {
+            root,
+            cwd,
+            tests: new Map<string, CargoTest>(),
+            modules: new Map<string, vscode.TestItem>(),
+        };
         projects.set(root.id, project);
         controller.items.add(root);
         void refresh(project);
