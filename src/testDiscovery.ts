@@ -172,7 +172,10 @@ async function findTestLocations(
         const docTest = parseDocTestLocation(name);
         if (docTest) {
             locations.set(name, {
-                uri: vscode.Uri.joinPath(rootUri, ...docTest.relativePath.split("/")),
+                uri: vscode.Uri.joinPath(
+                    rootUri,
+                    ...docTest.relativePath.split("/"),
+                ),
                 line: docTest.line,
             });
         } else {
@@ -192,10 +195,7 @@ async function findTestLocations(
     let files: vscode.Uri[];
     try {
         files = await vscode.workspace.findFiles(
-            new vscode.RelativePattern(
-                rootUri,
-                "**/*.rs",
-            ),
+            new vscode.RelativePattern(rootUri, "**/*.rs"),
             "**/{target,.git}/**",
         );
     } catch {

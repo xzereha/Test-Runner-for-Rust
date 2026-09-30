@@ -64,10 +64,10 @@ suite("Cargo test discovery", () => {
             ),
             { relativePath: "src/query/maybe.rs", line: 14 },
         );
-        assert.deepStrictEqual(
-            parseDocTestLocation("src/lib.rs - (line 6)"),
-            { relativePath: "src/lib.rs", line: 5 },
-        );
+        assert.deepStrictEqual(parseDocTestLocation("src/lib.rs - (line 6)"), {
+            relativePath: "src/lib.rs",
+            line: 5,
+        });
     });
 
     test("selects tests within an included module", () => {
