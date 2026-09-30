@@ -4,7 +4,7 @@ import { discover, type CargoProject, type CargoTest } from "./testDiscovery";
 import { runRequestedTests } from "./testExecution";
 
 export { getTestPath, parseTestListing } from "./testDiscovery";
-export { selectTests } from "./testExecution";
+export { formatCargoOutput, selectTests } from "./testExecution";
 
 async function refreshProject(
     project: CargoProject,

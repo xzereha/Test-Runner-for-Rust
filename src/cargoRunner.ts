@@ -50,8 +50,7 @@ export function runCargo(
     cwd: string,
     args: string[],
     token: vscode.CancellationToken,
-    onOutput: (text: string) => void,
-): Promise<{ code: number | null; stdout: string }> {
+): Promise<{ code: number | null; output: string }> {
     return new Promise((resolve, reject) => {
         let cargoPath = "";
         let cargoProcess: ChildProcessWithoutNullStreams;
@@ -62,21 +61,18 @@ export function runCargo(
             reject(formatSpawnError(error as Error, cargoPath, cwd));
             return;
         }
-        let stdout = "";
-        let stderr = "";
+        let output = "";
         const cancellation = token.onCancellationRequested(() =>
             cargoProcess.kill(),
         );
 
         cargoProcess.stdout.on("data", (chunk: Buffer) => {
             const text = chunk.toString();
-            stdout += text;
-            onOutput(text);
+            output += text;
         });
         cargoProcess.stderr.on("data", (chunk: Buffer) => {
             const text = chunk.toString();
-            stderr += text;
-            onOutput(text);
+            output += text;
         });
         cargoProcess.on("error", (error) => {
             cancellation.dispose();
@@ -84,10 +80,7 @@ export function runCargo(
         });
         cargoProcess.on("close", (code) => {
             cancellation.dispose();
-            if (stderr && !stdout) {
-                stdout = stderr;
-            }
-            resolve({ code, stdout });
+            resolve({ code, output });
         });
     });
 }

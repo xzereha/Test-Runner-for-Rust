@@ -21,16 +21,15 @@ export async function discover(
     clearDiscoveredTests(project);
     const tokenSource = new vscode.CancellationTokenSource();
     try {
-        const { code, stdout } = await runCargo(
+        const { code, output } = await runCargo(
             project.cwd,
             ["test", "--", "--list", "--format", "terse"],
             tokenSource.token,
-            () => undefined,
         );
         if (code !== 0) {
-            throw new Error(stdout || "Cargo test discovery failed.");
+            throw new Error(output || "Cargo test discovery failed.");
         }
-        addListedTests(project, controller, stdout);
+        addListedTests(project, controller, output);
     } finally {
         tokenSource.dispose();
     }

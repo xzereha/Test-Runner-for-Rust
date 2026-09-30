@@ -54,6 +54,23 @@ export function selectTests(
     return { tests, runAsSuite: rootIncluded && !excludesProjectItems };
 }
 
+export function formatCargoOutput(output: string): string {
+    return stripTerminalSequences(output)
+        .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
+        .replace(/\r\n?/g, "\n")
+        .replace(/^[\t ]+/gm, "");
+}
+
+function stripTerminalSequences(text: string): string {
+    const escape = String.fromCodePoint(0x1b);
+    const bell = String.fromCodePoint(0x07);
+    const terminalSequence = new RegExp(
+        String.raw`${escape}(?:\[[0-?]*[ -/]*[@-~]|\][^${bell}]*(?:${bell}|${escape}\\))`,
+        "g",
+    );
+    return text.replace(terminalSequence, "");
+}
+
 function formatError(error: unknown): string {
     if (error instanceof Error) {
         return error.message;
@@ -204,13 +221,13 @@ async function runTestBatch(
 ): Promise<void> {
     markTestsStarted(tests, run);
     try {
-        const { code, stdout } = await runCargo(
+        const { code, output } = await runCargo(
             project.cwd,
             getCargoTestArgs(tests, runAsSuite),
             token,
-            (text) => run.appendOutput(text),
         );
-        applyResults(tests, run, stdout, code);
+        run.appendOutput(formatCargoOutput(output));
+        applyResults(tests, run, output, code);
     } catch (error) {
         reportCargoFailure(project, tests, error, run, output);
     }
