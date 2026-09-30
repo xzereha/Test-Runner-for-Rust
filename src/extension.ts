@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { checkCargoExecutable, getResolvedCargoPath } from "./cargoRunner";
+import { runCoverage } from "./coverage";
 import { discover, type CargoProject, type CargoTest } from "./testDiscovery";
 import { runRequestedTests } from "./testExecution";
 
@@ -176,6 +177,29 @@ export function activate(context: vscode.ExtensionContext): void {
         },
         true,
     );
+    const coverageByFile = new Map<string, vscode.FileCoverageDetail[]>();
+    const coverageProfile = controller.createRunProfile(
+        "Run Cargo Coverage",
+        vscode.TestRunProfileKind.Coverage,
+        async (request, token) => {
+            const run = controller.createTestRun(request);
+            try {
+                await runCoverage(
+                    projects,
+                    request,
+                    token,
+                    run,
+                    output,
+                    coverageByFile,
+                );
+            } finally {
+                run.end();
+            }
+        },
+        false,
+    );
+    coverageProfile.loadDetailedCoverage = (_testRun, fileCoverage) =>
+        Promise.resolve(coverageByFile.get(fileCoverage.uri.toString()) ?? []);
     context.subscriptions.push(
         controller,
         output,
@@ -183,5 +207,6 @@ export function activate(context: vscode.ExtensionContext): void {
         cargoPathListener,
         refreshCommand,
         runProfile,
+        coverageProfile,
     );
 }

@@ -1,5 +1,6 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
+import { parseLcovReport } from "../coverage";
 import {
     formatCargoOutput,
     getTestDisplayPath,
@@ -22,6 +23,33 @@ function createItem(id: string): vscode.TestItem {
 }
 
 suite("Cargo test discovery", () => {
+    test("parses Tarpaulin LCOV into VS Code line coverage details", () => {
+        const files = parseLcovReport(
+            [
+                "TN:",
+                "SF:/project/src/lib.rs",
+                "DA:4,3",
+                "DA:5,0",
+                "LF:2",
+                "LH:1",
+                "end_of_record",
+                "SF:/outside/dependency.rs",
+                "DA:1,1",
+                "end_of_record",
+            ].join("\n"),
+            vscode.Uri.file("/project"),
+        );
+
+        assert.strictEqual(files.length, 1);
+        assert.strictEqual(files[0].uri.fsPath, "/project/src/lib.rs");
+        assert.deepStrictEqual(
+            files[0].details.map(
+                (detail) => (detail as vscode.StatementCoverage).executed,
+            ),
+            [3, 0],
+        );
+    });
+
     test("parses terse Cargo test listings", () => {
         const listing =
             "crate::works: test\ncrate::ignored: test\n2 tests, 0 benchmarks";
