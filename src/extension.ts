@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { checkCargoExecutable, getResolvedCargoPath } from "./cargoRunner";
 import { discover, type CargoProject, type CargoTest } from "./testDiscovery";
 import { runRequestedTests } from "./testExecution";
 
@@ -13,11 +14,12 @@ async function refreshProject(
     try {
         await discover(project, controller);
     } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
         output.appendLine(
-            `Test discovery failed in ${project.cwd}: ${String(error)}`,
+            `Test discovery failed in ${project.cwd}: ${message}`,
         );
         vscode.window.showWarningMessage(
-            `Could not discover Cargo tests in ${project.cwd}. See the Cargo Tests output for details.`,
+            `Could not discover Cargo tests in ${project.cwd}. ${message}`,
         );
     }
 }
@@ -31,6 +33,24 @@ async function refreshProjects(
     const targets = project ? [project] : [...projects.values()];
     await Promise.all(
         targets.map((target) => refreshProject(target, controller, output)),
+    );
+}
+
+function clearProjectTests(projects: Map<string, CargoProject>): void {
+    for (const project of projects.values()) {
+        project.root.children.replace([]);
+        project.tests.clear();
+        project.modules.clear();
+    }
+}
+
+function showCargoUnavailable(
+    message: string,
+    output: vscode.OutputChannel,
+): void {
+    output.appendLine(message);
+    vscode.window.showWarningMessage(
+        `${message} Test discovery and runs are paused until the Cargo path setting changes.`,
     );
 }
 
@@ -51,9 +71,24 @@ export function activate(context: vscode.ExtensionContext): void {
     );
     const projects = new Map<string, CargoProject>();
     const output = vscode.window.createOutputChannel("Cargo Tests");
+    let cargoAvailable = false;
 
     const refresh = (project?: CargoProject): Promise<void> =>
-        refreshProjects(projects, controller, output, project);
+        cargoAvailable
+            ? refreshProjects(projects, controller, output, project)
+            : Promise.resolve();
+
+    const checkCargo = async (): Promise<void> => {
+        const error = await checkCargoExecutable();
+        if (error) {
+            cargoAvailable = false;
+            clearProjectTests(projects);
+            showCargoUnavailable(error, output);
+            return;
+        }
+        cargoAvailable = true;
+        void refresh();
+    };
 
     const addWorkspace = (folder: vscode.WorkspaceFolder): void => {
         const cwd = folder.uri.fsPath;
@@ -70,7 +105,9 @@ export function activate(context: vscode.ExtensionContext): void {
         };
         projects.set(root.id, project);
         controller.items.add(root);
-        void refresh(project);
+        if (cargoAvailable) {
+            void refresh(project);
+        }
     };
 
     for (const folder of vscode.workspace.workspaceFolders ?? []) {
@@ -86,6 +123,21 @@ export function activate(context: vscode.ExtensionContext): void {
             }
         },
     );
+    const cargoPathListener = vscode.workspace.onDidChangeConfiguration(
+        (event) => {
+            if (!event.affectsConfiguration("test-runner-for-rust.cargoPath")) {
+                return;
+            }
+            const configuredPath = vscode.workspace
+                .getConfiguration("test-runner-for-rust")
+                .get<string>("cargoPath");
+            if (configuredPath === getResolvedCargoPath()) {
+                return;
+            }
+            void checkCargo();
+        },
+    );
+    void checkCargo();
 
     const refreshCommand = vscode.commands.registerCommand(
         "test-runner-for-rust.refreshTests",
@@ -106,6 +158,7 @@ export function activate(context: vscode.ExtensionContext): void {
         controller,
         output,
         workspaceListener,
+        cargoPathListener,
         refreshCommand,
         runProfile,
     );

@@ -27,6 +27,7 @@
             "properties": {
                 "test-runner-for-rust.cargoPath": {
                     "type": "string",
+                    "scope": "machine",
                     "default": "",
                     "description": "Absolute path to the Cargo executable. Defaults to the standard rustup installation path."
                 }
