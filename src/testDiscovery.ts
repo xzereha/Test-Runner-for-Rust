@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import * as vscode from "vscode";
 import { runCargo } from "./cargoRunner";
 import {
@@ -43,7 +44,32 @@ export async function discover(
 }
 
 export function parseTestListing(output: string): string[] {
-    return [...output.matchAll(/^(.+): test$/gm)].map((match) => match[1]);
+    return parseTestListingEntries(output).map(({ name }) => name);
+}
+
+export function parseTestListingEntries(
+    output: string,
+): Array<{ name: string; sourceFile?: string }> {
+    const entries: Array<{ name: string; sourceFile?: string }> = [];
+    let sourceFile: string | undefined;
+    for (const line of output.split(/\r?\n/)) {
+        const binaryHeader = /^\s*Running (?:unittests )?(.+?\.rs)\s+\(/.exec(
+            line,
+        );
+        if (binaryHeader) {
+            sourceFile = binaryHeader[1].replaceAll("\\", "/");
+            continue;
+        }
+        if (/^\s*Doc-tests\b/.test(line)) {
+            sourceFile = undefined;
+            continue;
+        }
+        const test = /^(.+): test$/.exec(line.trim());
+        if (test) {
+            entries.push({ name: test[1], sourceFile });
+        }
+    }
+    return entries;
 }
 
 export function getTestPath(name: string): {
@@ -58,11 +84,20 @@ export function getVisibleModulePath(modules: string[]): string[] {
     return modules.filter((moduleName) => moduleName !== "tests");
 }
 
-export function getTestDisplayPath(name: string): {
+export function getTestDisplayPath(name: string, sourceFile?: string): {
     modules: string[];
     label: string;
+    groupLabel?: string;
 } {
     const { modules, label } = getTestPath(name);
+    const normalizedSourceFile = sourceFile?.replaceAll("\\", "/");
+    if (normalizedSourceFile?.startsWith("tests/")) {
+        return {
+            modules: [`$integration:${normalizedSourceFile}`],
+            label,
+            groupLabel: basename(normalizedSourceFile),
+        };
+    }
     return {
         modules: parseDocTestLocation(name)
             ? [DOCTEST_GROUP_PATH]
@@ -148,12 +183,27 @@ function addDiscoveredTest(
     controller: vscode.TestController,
     name: string,
     location?: { uri: vscode.Uri; range: vscode.Range },
+    sourceFile?: string,
 ): void {
-    const { modules: visibleModules, label } = getTestDisplayPath(name);
+    const { modules: visibleModules, label, groupLabel } = getTestDisplayPath(
+        name,
+        sourceFile,
+    );
     const isDocTest = parseDocTestLocation(name) !== undefined;
-    const parent = isDocTest
-        ? getOrCreateDoctestGroup(project, controller)
-        : getTestParent(project, controller, visibleModules);
+    let parent: vscode.TestItem;
+    if (isDocTest) {
+        parent = getOrCreateDoctestGroup(project, controller);
+    } else if (groupLabel) {
+        parent = getOrCreateModule(
+            project,
+            controller,
+            project.root,
+            visibleModules[0],
+            groupLabel,
+        );
+    } else {
+        parent = getTestParent(project, controller, visibleModules);
+    }
     const item = controller.createTestItem(
         `${project.root.id}::test::${name}`,
         label,
@@ -171,10 +221,17 @@ async function addListedTests(
     controller: vscode.TestController,
     output: string,
 ): Promise<void> {
-    const names = parseTestListing(output);
+    const entries = parseTestListingEntries(output);
+    const names = entries.map(({ name }) => name);
     const rootUri = project.root.uri ?? vscode.Uri.file(project.cwd);
     const locations = await resolveTestLocations(rootUri, names);
-    for (const name of names) {
-        addDiscoveredTest(project, controller, name, locations.get(name));
+    for (const { name, sourceFile } of entries) {
+        addDiscoveredTest(
+            project,
+            controller,
+            name,
+            locations.get(name),
+            sourceFile,
+        );
     }
 }

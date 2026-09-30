@@ -7,6 +7,7 @@ import {
     getVisibleModulePath,
     parseTestResults,
     parseTestListing,
+    parseTestListingEntries,
     selectTests,
 } from "../extension";
 import {
@@ -28,6 +29,31 @@ suite("Cargo test discovery", () => {
             "crate::works",
             "crate::ignored",
         ]);
+    });
+
+    test("tracks integration test files from Cargo binary headers", () => {
+        const output = [
+            "Running unittests src/lib.rs (target/debug/deps/crate-abcd)",
+            "unit::tests::works: test",
+            "Running tests/integration.rs (target/debug/deps/integration-abcd)",
+            "creates_entity: test",
+            "Running tests/another.rs (target/debug/deps/another-abcd)",
+            "creates_entity: test",
+        ].join("\n");
+
+        assert.deepStrictEqual(parseTestListingEntries(output), [
+            { name: "unit::tests::works", sourceFile: "src/lib.rs" },
+            { name: "creates_entity", sourceFile: "tests/integration.rs" },
+            { name: "creates_entity", sourceFile: "tests/another.rs" },
+        ]);
+        assert.deepStrictEqual(
+            getTestDisplayPath("creates_entity", "tests/integration.rs"),
+            {
+                modules: ["$integration:tests/integration.rs"],
+                label: "creates_entity",
+                groupLabel: "integration.rs",
+            },
+        );
     });
 
     test("matches expected-panic result names to listed test names", () => {

@@ -8,6 +8,7 @@ export {
     getTestDisplayPath,
     getVisibleModulePath,
     parseTestListing,
+    parseTestListingEntries,
 } from "./testDiscovery";
 export {
     formatCargoOutput,
