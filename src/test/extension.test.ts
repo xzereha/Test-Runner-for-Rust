@@ -2,13 +2,17 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import {
     formatCargoOutput,
-    findTestFunctionLine,
     getTestPath,
     getVisibleModulePath,
-    parseDocTestLocation,
     parseTestListing,
     selectTests,
 } from "../extension";
+import {
+    getRustModulePath,
+    getSymbolLocationKey,
+    parseDocTestLocation,
+    selectTestSymbol,
+} from "../testLocation";
 
 function createItem(id: string): vscode.TestItem {
     return { id } as vscode.TestItem;
@@ -52,19 +56,6 @@ suite("Cargo test discovery", () => {
         );
     });
 
-    test("finds the line of an attributed Rust test function", () => {
-        const source = [
-            "mod tests {",
-            "    #[tokio::test]",
-            "    async fn loads_world() {",
-            "    }",
-            "}",
-        ].join("\n");
-
-        assert.strictEqual(findTestFunctionLine(source, "loads_world"), 2);
-        assert.strictEqual(findTestFunctionLine(source, "missing"), undefined);
-    });
-
     test("parses source locations from Cargo doctest names", () => {
         assert.deepStrictEqual(
             parseDocTestLocation(
@@ -76,6 +67,97 @@ suite("Cargo test discovery", () => {
             relativePath: "src/lib.rs",
             line: 5,
         });
+    });
+
+    test("selects same-named Rust symbols by module path", () => {
+        const workspaceRoot = vscode.Uri.file("/project");
+        const getTest = new vscode.SymbolInformation(
+            "returns_value",
+            vscode.SymbolKind.Function,
+            new vscode.Range(10, 0, 10, 20),
+            vscode.Uri.file("/project/src/store.rs"),
+            "tests::get",
+        );
+        const getMutTest = new vscode.SymbolInformation(
+            "returns_value",
+            vscode.SymbolKind.Function,
+            new vscode.Range(20, 0, 20, 20),
+            vscode.Uri.file("/project/src/store.rs"),
+            "tests::get_mut",
+        );
+
+        assert.strictEqual(
+            selectTestSymbol(
+                [getTest, getMutTest],
+                "ecs_rs::tests::get::returns_value",
+                workspaceRoot,
+            ),
+            getTest,
+        );
+        assert.strictEqual(
+            selectTestSymbol(
+                [getTest, getMutTest],
+                "ecs_rs::tests::get_mut::returns_value",
+                workspaceRoot,
+            ),
+            getMutTest,
+        );
+    });
+
+    test("disambiguates same-named symbols by source module scope", () => {
+        const workspaceRoot = vscode.Uri.file("/project");
+        const uri = vscode.Uri.file("/project/src/store.rs");
+        const getTest = new vscode.SymbolInformation(
+            "returns_value",
+            vscode.SymbolKind.Function,
+            new vscode.Range(3, 0, 3, 20),
+            uri,
+        );
+        const getMutTest = new vscode.SymbolInformation(
+            "returns_value",
+            vscode.SymbolKind.Function,
+            new vscode.Range(7, 0, 7, 20),
+            uri,
+        );
+        const source = [
+            "mod tests {",
+            "    mod get {",
+            "        #[test]",
+            "        fn returns_value() {}",
+            "    }",
+            "    mod get_mut {",
+            "        #[test]",
+            "        fn returns_value() {}",
+            "    }",
+            "}",
+        ].join("\n");
+        const modulePaths = new Map([
+            [getSymbolLocationKey(getTest), getRustModulePath(source, 3)],
+            [getSymbolLocationKey(getMutTest), getRustModulePath(source, 7)],
+        ]);
+
+        assert.deepStrictEqual(modulePaths.get(getSymbolLocationKey(getTest)), [
+            "tests",
+            "get",
+        ]);
+        assert.strictEqual(
+            selectTestSymbol(
+                [getTest, getMutTest],
+                "ecs_rs::tests::get::returns_value",
+                workspaceRoot,
+                modulePaths,
+            ),
+            getTest,
+        );
+        assert.strictEqual(
+            selectTestSymbol(
+                [getTest, getMutTest],
+                "ecs_rs::tests::get_mut::returns_value",
+                workspaceRoot,
+                modulePaths,
+            ),
+            getMutTest,
+        );
     });
 
     test("selects tests within an included module", () => {

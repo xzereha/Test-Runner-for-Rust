@@ -4,13 +4,12 @@ import { discover, type CargoProject, type CargoTest } from "./testDiscovery";
 import { runRequestedTests } from "./testExecution";
 
 export {
-    findTestFunctionLine,
     getTestPath,
     getVisibleModulePath,
-    parseDocTestLocation,
     parseTestListing,
 } from "./testDiscovery";
 export { formatCargoOutput, selectTests } from "./testExecution";
+export { parseDocTestLocation, selectTestSymbol } from "./testLocation";
 
 async function refreshProject(
     project: CargoProject,
