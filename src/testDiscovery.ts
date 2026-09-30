@@ -81,7 +81,9 @@ export function getTestPath(name: string): {
 }
 
 export function getVisibleModulePath(modules: string[]): string[] {
-    return modules.filter((moduleName) => moduleName !== "tests");
+    return modules.filter(
+        (moduleName) => moduleName !== "test" && moduleName !== "tests",
+    );
 }
 
 export function getTestDisplayPath(

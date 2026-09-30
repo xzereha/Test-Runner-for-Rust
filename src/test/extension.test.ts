@@ -93,7 +93,7 @@ suite("Cargo test discovery", () => {
 
     test("flattens tests module names from visible paths", () => {
         assert.deepStrictEqual(
-            getVisibleModulePath(["crate", "tests", "nested"]),
+            getVisibleModulePath(["crate", "test", "tests", "nested"]),
             ["crate", "nested"],
         );
     });
