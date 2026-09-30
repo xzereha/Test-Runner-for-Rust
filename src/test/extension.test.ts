@@ -23,8 +23,7 @@ suite("Cargo test discovery", () => {
 
     test("formats Cargo test output as one unindented line per test", () => {
         const escape = String.fromCodePoint(0x1b);
-        const output =
-            `${escape}[33m    Doc-tests ecs_rs${escape}[0m\r\n${escape}[120Crunning 2 tests\r${escape}[200C${escape}[32mtest first ... ok${escape}[0m\r\n       test second ... ok\r\n    ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s`;
+        const output = `${escape}[33m    Doc-tests ecs_rs${escape}[0m\r\n${escape}[120Crunning 2 tests\r${escape}[200C${escape}[32mtest first ... ok${escape}[0m\r\n       test second ... ok\r\n    ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s`;
 
         assert.strictEqual(
             formatCargoOutput(output),
