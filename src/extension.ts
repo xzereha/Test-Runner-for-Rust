@@ -6,6 +6,7 @@ import { runRequestedTests } from "./testExecution";
 export {
     findTestFunctionLine,
     getTestPath,
+    getVisibleModulePath,
     parseDocTestLocation,
     parseTestListing,
 } from "./testDiscovery";

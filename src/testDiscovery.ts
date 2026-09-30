@@ -47,6 +47,10 @@ export function getTestPath(name: string): {
     return { modules: parts.slice(0, -1), label: parts.at(-1) ?? "" };
 }
 
+export function getVisibleModulePath(modules: string[]): string[] {
+    return modules.filter((moduleName) => moduleName !== "tests");
+}
+
 export function findTestFunctionLine(
     source: string,
     testName: string,
@@ -131,7 +135,8 @@ function addDiscoveredTest(
     location?: { uri: vscode.Uri; line: number },
 ): void {
     const { modules, label } = getTestPath(name);
-    const parent = getTestParent(project, controller, modules);
+    const visibleModules = getVisibleModulePath(modules);
+    const parent = getTestParent(project, controller, visibleModules);
     const item = controller.createTestItem(
         `${project.root.id}::test::${name}`,
         label,
@@ -140,7 +145,7 @@ function addDiscoveredTest(
     if (location) {
         item.range = new vscode.Range(location.line, 0, location.line, 0);
     }
-    project.tests.set(name, { name, item, modules });
+    project.tests.set(name, { name, item, modules: visibleModules });
     parent.children.add(item);
 }
 

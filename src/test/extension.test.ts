@@ -4,6 +4,7 @@ import {
     formatCargoOutput,
     findTestFunctionLine,
     getTestPath,
+    getVisibleModulePath,
     parseDocTestLocation,
     parseTestListing,
     selectTests,
@@ -44,6 +45,13 @@ suite("Cargo test discovery", () => {
         });
     });
 
+    test("flattens tests module names from visible paths", () => {
+        assert.deepStrictEqual(
+            getVisibleModulePath(["crate", "tests", "nested"]),
+            ["crate", "nested"],
+        );
+    });
+
     test("finds the line of an attributed Rust test function", () => {
         const source = [
             "mod tests {",
@@ -73,11 +81,11 @@ suite("Cargo test discovery", () => {
     test("selects tests within an included module", () => {
         const root = createItem("project");
         const crateModule = createItem("project::module::crate");
-        const testsModule = createItem("project::module::crate::tests");
+        const unitModule = createItem("project::module::crate::unit");
         const nestedTest = {
-            name: "crate::tests::works",
-            item: createItem("project::test::crate::tests::works"),
-            modules: ["crate", "tests"],
+            name: "crate::tests::unit::works",
+            item: createItem("project::test::crate::tests::unit::works"),
+            modules: ["crate", "unit"],
         };
         const siblingTest = {
             name: "crate::other",
@@ -89,7 +97,7 @@ suite("Cargo test discovery", () => {
             cwd: "/project",
             modules: new Map([
                 ["crate", crateModule],
-                ["crate::tests", testsModule],
+                ["crate::unit", unitModule],
             ]),
             tests: new Map([
                 [nestedTest.name, nestedTest],
@@ -97,7 +105,7 @@ suite("Cargo test discovery", () => {
             ]),
         };
         const result = selectTests(project, {
-            include: [testsModule],
+            include: [unitModule],
             exclude: undefined,
         });
 
@@ -110,11 +118,11 @@ suite("Cargo test discovery", () => {
     test("excludes tests within an excluded module", () => {
         const root = createItem("project");
         const crateModule = createItem("project::module::crate");
-        const testsModule = createItem("project::module::crate::tests");
+        const unitModule = createItem("project::module::crate::unit");
         const nestedTest = {
-            name: "crate::tests::works",
-            item: createItem("project::test::crate::tests::works"),
-            modules: ["crate", "tests"],
+            name: "crate::tests::unit::works",
+            item: createItem("project::test::crate::tests::unit::works"),
+            modules: ["crate", "unit"],
         };
         const siblingTest = {
             name: "crate::other",
@@ -126,7 +134,7 @@ suite("Cargo test discovery", () => {
             cwd: "/project",
             modules: new Map([
                 ["crate", crateModule],
-                ["crate::tests", testsModule],
+                ["crate::unit", unitModule],
             ]),
             tests: new Map([
                 [nestedTest.name, nestedTest],
@@ -135,7 +143,7 @@ suite("Cargo test discovery", () => {
         };
         const result = selectTests(project, {
             include: [root],
-            exclude: [testsModule],
+            exclude: [unitModule],
         });
 
         assert.deepStrictEqual(
