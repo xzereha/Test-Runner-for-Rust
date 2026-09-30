@@ -1,6 +1,11 @@
 import * as vscode from "vscode";
 import { runCargo } from "./cargoRunner";
-import { findTestLocations as resolveTestLocations } from "./testLocation";
+import {
+    findTestLocations as resolveTestLocations,
+    parseDocTestLocation,
+} from "./testLocation";
+
+const DOCTEST_GROUP_PATH = "$doctests";
 
 export type CargoTest = {
     name: string;
@@ -10,6 +15,7 @@ export type CargoTest = {
 
 export type CargoProject = {
     root: vscode.TestItem;
+    doctestGroup?: vscode.TestItem;
     cwd: string;
     tests: Map<string, CargoTest>;
     modules: Map<string, vscode.TestItem>;
@@ -19,7 +25,7 @@ export async function discover(
     project: CargoProject,
     controller: vscode.TestController,
 ): Promise<void> {
-    clearDiscoveredTests(project);
+    clearDiscoveredTests(project, controller);
     const tokenSource = new vscode.CancellationTokenSource();
     try {
         const { code, output } = await runCargo(
@@ -52,10 +58,48 @@ export function getVisibleModulePath(modules: string[]): string[] {
     return modules.filter((moduleName) => moduleName !== "tests");
 }
 
-function clearDiscoveredTests(project: CargoProject): void {
+export function getTestDisplayPath(name: string): {
+    modules: string[];
+    label: string;
+} {
+    const { modules, label } = getTestPath(name);
+    return {
+        modules: parseDocTestLocation(name)
+            ? [DOCTEST_GROUP_PATH]
+            : getVisibleModulePath(modules),
+        label,
+    };
+}
+
+function clearDiscoveredTests(
+    project: CargoProject,
+    controller: vscode.TestController,
+): void {
     project.root.children.replace([]);
+    if (project.doctestGroup) {
+        controller.items.delete(project.doctestGroup.id);
+        project.doctestGroup = undefined;
+    }
     project.tests.clear();
     project.modules.clear();
+}
+
+function getOrCreateDoctestGroup(
+    project: CargoProject,
+    controller: vscode.TestController,
+): vscode.TestItem {
+    if (project.doctestGroup) {
+        return project.doctestGroup;
+    }
+    const group = controller.createTestItem(
+        `${project.root.id}::doctest`,
+        `${project.root.label}::doctest`,
+        project.root.uri,
+    );
+    project.doctestGroup = group;
+    project.modules.set(DOCTEST_GROUP_PATH, group);
+    controller.items.add(group);
+    return group;
 }
 
 function getOrCreateModule(
@@ -105,9 +149,11 @@ function addDiscoveredTest(
     name: string,
     location?: { uri: vscode.Uri; range: vscode.Range },
 ): void {
-    const { modules, label } = getTestPath(name);
-    const visibleModules = getVisibleModulePath(modules);
-    const parent = getTestParent(project, controller, visibleModules);
+    const { modules: visibleModules, label } = getTestDisplayPath(name);
+    const isDocTest = parseDocTestLocation(name) !== undefined;
+    const parent = isDocTest
+        ? getOrCreateDoctestGroup(project, controller)
+        : getTestParent(project, controller, visibleModules);
     const item = controller.createTestItem(
         `${project.root.id}::test::${name}`,
         label,

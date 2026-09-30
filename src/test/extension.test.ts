@@ -2,6 +2,7 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import {
     formatCargoOutput,
+    getTestDisplayPath,
     getTestPath,
     getVisibleModulePath,
     parseTestResults,
@@ -68,6 +69,17 @@ suite("Cargo test discovery", () => {
         assert.deepStrictEqual(
             getVisibleModulePath(["crate", "tests", "nested"]),
             ["crate", "nested"],
+        );
+    });
+
+    test("groups doctests separately from Rust module tests", () => {
+        assert.deepStrictEqual(
+            getTestDisplayPath("src/lib.rs - docs::example (line 12)"),
+            { modules: ["$doctests"], label: "example (line 12)" },
+        );
+        assert.deepStrictEqual(
+            getTestDisplayPath("ecs_rs::tests::world::creates_entity"),
+            { modules: ["ecs_rs", "world"], label: "creates_entity" },
         );
     });
 

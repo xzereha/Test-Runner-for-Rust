@@ -5,6 +5,7 @@ import { runRequestedTests } from "./testExecution";
 
 export {
     getTestPath,
+    getTestDisplayPath,
     getVisibleModulePath,
     parseTestListing,
 } from "./testDiscovery";
@@ -45,9 +46,16 @@ async function refreshProjects(
     );
 }
 
-function clearProjectTests(projects: Map<string, CargoProject>): void {
+function clearProjectTests(
+    projects: Map<string, CargoProject>,
+    controller: vscode.TestController,
+): void {
     for (const project of projects.values()) {
         project.root.children.replace([]);
+        if (project.doctestGroup) {
+            controller.items.delete(project.doctestGroup.id);
+            project.doctestGroup = undefined;
+        }
         project.tests.clear();
         project.modules.clear();
     }
@@ -69,6 +77,10 @@ function removeWorkspace(
     controller: vscode.TestController,
 ): void {
     const id = `cargo:${folder.uri.fsPath}`;
+    const project = projects.get(id);
+    if (project?.doctestGroup) {
+        controller.items.delete(project.doctestGroup.id);
+    }
     projects.delete(id);
     controller.items.delete(id);
 }
@@ -91,7 +103,7 @@ export function activate(context: vscode.ExtensionContext): void {
         const error = await checkCargoExecutable();
         if (error) {
             cargoAvailable = false;
-            clearProjectTests(projects);
+            clearProjectTests(projects, controller);
             showCargoUnavailable(error, output);
             return;
         }
