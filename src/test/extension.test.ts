@@ -4,6 +4,7 @@ import {
     formatCargoOutput,
     getTestPath,
     getVisibleModulePath,
+    parseTestResults,
     parseTestListing,
     selectTests,
 } from "../extension";
@@ -26,6 +27,20 @@ suite("Cargo test discovery", () => {
             "crate::works",
             "crate::ignored",
         ]);
+    });
+
+    test("matches expected-panic result names to listed test names", () => {
+        const results = parseTestResults(
+            "test entity::tests::panics - should panic ... ok\ntest entity::tests::unexpected - should panic ... FAILED",
+        );
+
+        assert.deepStrictEqual(
+            [...results],
+            [
+                ["entity::tests::panics", "ok"],
+                ["entity::tests::unexpected", "FAILED"],
+            ],
+        );
     });
 
     test("formats Cargo test output as one unindented line per test", () => {

@@ -8,7 +8,11 @@ export {
     getVisibleModulePath,
     parseTestListing,
 } from "./testDiscovery";
-export { formatCargoOutput, selectTests } from "./testExecution";
+export {
+    formatCargoOutput,
+    parseTestResults,
+    selectTests,
+} from "./testExecution";
 export { parseDocTestLocation, selectTestSymbol } from "./testLocation";
 
 async function refreshProject(

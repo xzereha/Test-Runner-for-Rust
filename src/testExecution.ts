@@ -54,6 +54,17 @@ export function selectTests(
     return { tests, runAsSuite: rootIncluded && !excludesProjectItems };
 }
 
+export function parseTestResults(output: string): Map<string, TestResult> {
+    const results = new Map<string, TestResult>();
+    for (const match of output.matchAll(
+        /^test (.+) \.\.\. (ok|FAILED|ignored)(?: .*)?$/gm,
+    )) {
+        const name = match[1].replace(/ - should panic$/, "");
+        results.set(name, match[2] as TestResult);
+    }
+    return results;
+}
+
 export function formatCargoOutput(output: string): string {
     return stripTerminalSequences(output)
         .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
@@ -83,16 +94,6 @@ function formatError(error: unknown): string {
     } catch {
         return "Unknown error";
     }
-}
-
-function parseResults(output: string): Map<string, TestResult> {
-    const results = new Map<string, TestResult>();
-    for (const match of output.matchAll(
-        /^test (.+) \.\.\. (ok|FAILED|ignored)(?: .*)?$/gm,
-    )) {
-        results.set(match[1], match[2] as TestResult);
-    }
-    return results;
 }
 
 function applyTestResult(
@@ -127,7 +128,7 @@ function applyResults(
     output: string,
     code: number | null,
 ): void {
-    const results = parseResults(output);
+    const results = parseTestResults(output);
     for (const test of tests) {
         applyTestResult(test, results.get(test.name), run, output, code);
     }
