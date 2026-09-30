@@ -84,7 +84,10 @@ export function getVisibleModulePath(modules: string[]): string[] {
     return modules.filter((moduleName) => moduleName !== "tests");
 }
 
-export function getTestDisplayPath(name: string, sourceFile?: string): {
+export function getTestDisplayPath(
+    name: string,
+    sourceFile?: string,
+): {
     modules: string[];
     label: string;
     groupLabel?: string;
@@ -185,10 +188,11 @@ function addDiscoveredTest(
     location?: { uri: vscode.Uri; range: vscode.Range },
     sourceFile?: string,
 ): void {
-    const { modules: visibleModules, label, groupLabel } = getTestDisplayPath(
-        name,
-        sourceFile,
-    );
+    const {
+        modules: visibleModules,
+        label,
+        groupLabel,
+    } = getTestDisplayPath(name, sourceFile);
     const isDocTest = parseDocTestLocation(name) !== undefined;
     let parent: vscode.TestItem;
     if (isDocTest) {
