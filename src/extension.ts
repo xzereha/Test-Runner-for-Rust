@@ -3,7 +3,12 @@ import { checkCargoExecutable, getResolvedCargoPath } from "./cargoRunner";
 import { discover, type CargoProject, type CargoTest } from "./testDiscovery";
 import { runRequestedTests } from "./testExecution";
 
-export { getTestPath, parseTestListing } from "./testDiscovery";
+export {
+    findTestFunctionLine,
+    getTestPath,
+    parseDocTestLocation,
+    parseTestListing,
+} from "./testDiscovery";
 export { formatCargoOutput, selectTests } from "./testExecution";
 
 async function refreshProject(

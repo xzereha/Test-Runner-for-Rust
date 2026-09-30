@@ -2,7 +2,9 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import {
     formatCargoOutput,
+    findTestFunctionLine,
     getTestPath,
+    parseDocTestLocation,
     parseTestListing,
     selectTests,
 } from "../extension";
@@ -40,6 +42,32 @@ suite("Cargo test discovery", () => {
             modules: [],
             label: "works",
         });
+    });
+
+    test("finds the line of an attributed Rust test function", () => {
+        const source = [
+            "mod tests {",
+            "    #[tokio::test]",
+            "    async fn loads_world() {",
+            "    }",
+            "}",
+        ].join("\n");
+
+        assert.strictEqual(findTestFunctionLine(source, "loads_world"), 2);
+        assert.strictEqual(findTestFunctionLine(source, "missing"), undefined);
+    });
+
+    test("parses source locations from Cargo doctest names", () => {
+        assert.deepStrictEqual(
+            parseDocTestLocation(
+                "src/query/maybe.rs - query::maybe::Option<&'aT> (line 15)",
+            ),
+            { relativePath: "src/query/maybe.rs", line: 14 },
+        );
+        assert.deepStrictEqual(
+            parseDocTestLocation("src/lib.rs - (line 6)"),
+            { relativePath: "src/lib.rs", line: 5 },
+        );
     });
 
     test("selects tests within an included module", () => {
